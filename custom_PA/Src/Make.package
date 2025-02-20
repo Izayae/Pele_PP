@@ -1,0 +1,5 @@
+CEXE_sources += DataManager.cpp Slice2d.cpp MultiStat.cpp HeaderReader.cpp NewQuantities.cpp
+CEXE_headers += DataManager.H   Slice2d.H   MultiStat.H   InputParam.H  ConditionalParam.H HeaderReader.H
+
+VPATH_LOCATIONS += $(PELE_ANALYSIS_HOME)/Src/
+INCLUDE_LOCATIONS += $(PELE_ANALYSIS_HOME)/Src/

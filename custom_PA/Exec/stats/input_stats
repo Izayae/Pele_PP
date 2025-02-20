@@ -1,0 +1,70 @@
+#------------------------ Miscellaneous options ------------------------#
+#help = 0               # Not used at the moment
+#verbose = 1            # Not used at the moment
+
+#---------------------------- MultiStat parameters ---------------------------#
+n_dims = 3
+
+# bin for mixture_fraction
+bin_var_0   = mixture_fraction
+n_bin_0     = 100
+min_var_0   = 0
+max_var_0   = 0.06
+is_log_0    = 0
+count_ext_0 = 1
+
+# bin for temperature
+bin_var_1   = temp
+n_bin_1     = 100
+min_var_1   = 300
+max_var_1   = 2200
+is_log_1    = 0
+count_ext_1 = 1
+
+# bin for Heat release rate
+bin_var_2   = HeatRelease
+n_bin_2     = 50
+min_var_2   = 1e7
+max_var_2   = 1e10
+is_log_2    = 1
+count_ext_2 = 1
+
+#---------------------------- DataManager parameters ---------------------------#
+finest_level = 1        # Finest level to read in the plotfile
+max_grid_size = 64      # max_grid_size for the boxes
+lo_BC = Inflow Custom Periodic
+hi_BC = Outflow SlipWallAdiab Periodic
+is_per = 0 0 1          # Periodicity in x y z direction for BC characterization
+sym_dir = 0 0 0         # Periodicity in x y z direction for BC characterization
+
+# ------------ Conditioning ------------ #
+## This is to do the statistics on only a subset of the datapoints which verify the conditions
+cond.do_conditioning = 1
+
+# labels for the condition, conditioning is done on the intersection
+# here two conditions at the same time, just for an example:
+# - points in the bottom of the domain : z<0.2   # (z need to be generated in NewQuantities !)
+# - points with HRR high enough : HeatRelease>1e7
+cond.condition_names = low_z high_HRR
+
+# first condition : low_z
+cond.low_z.type = constant
+cond.low_z.var = z
+cond.low_z.lo = 0.00
+cond.low_z.hi = 0.2
+
+# second condition : high_HRR
+cond.high_HRR.type = constant
+cond.high_HRR.var = HeatRelease
+cond.high_HRR.lo = 1e7
+cond.high_HRR.hi = 1e18
+
+# Condition with boundaries function of mixture fraction (only polynomial for now)
+# lo and hi should have the coefficient of the polynomial to use for the function
+# from low order to high order terms: T = c[0] + c[1]*T + ... + c[n]*T^n
+# To put constant value function on a boundary, just put a single value
+#cond.trans_band.type = function
+#cond.trans_band.param = mixture_fraction
+#cond.trans_band.var = c_CH4
+#cond.trans_band.lo = 1.63969899e+00 -1.01661857e+02  5.79582539e+03 -1.84720548e+05 3.25776090e+06 -3.21754608e+07 1.67134712e+08 #-3.54399775e+08 
+#cond.trans_band.hi = 1.65969899e+00 -1.01661857e+02  5.79582539e+03 -1.84720548e+05 3.25776090e+06 -3.21754608e+07 1.67134712e+08 #-3.54399775e+08 

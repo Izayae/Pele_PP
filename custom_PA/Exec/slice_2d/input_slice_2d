@@ -1,0 +1,15 @@
+#------------------------ Miscellaneous options ------------------------#
+#help = 0               # Not used at the moment
+#verbose = 1            # Not used at the moment
+
+#---------------------------- slice_2d parameters ---------------------------#
+# for now, it's in cpp file, but should be moved here
+
+#---------------------------- DataManager parameters ---------------------------#
+finest_level = 1        # Finest level to read in the plotfile
+max_grid_size = 64      # max_grid_size for the boxes
+lo_BC = Inflow Custom Periodic
+hi_BC = Outflow SlipWallAdiab Periodic
+is_per = 0 0 1          # Periodicity in x y z direction for BC characterization
+sym_dir = 0 0 0         # Periodicity in x y z direction for BC characterization
+
