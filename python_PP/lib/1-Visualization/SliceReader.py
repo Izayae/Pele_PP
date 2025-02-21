@@ -34,13 +34,13 @@ class SliceReader:
         self.path_file = path_file    # full path to slice file
         
         # Slice metadata
-        self.slice_name = os.path.basename(path_file)    # basename of the slice file
-        #self.plt_file = plt_file      # name of the original plotfile (something like plt?????)
-        self.time = None               # time of the plotfile (float)
-        self.amr_level = None          # AMR level of the slice
-        self.normal_dir = None         # normal direction to the slice ("x", "y", "z")
-        self.normal_val = None         # distance of the slice in the normal direction (between 0 and 1 if possible)
-        self.dx = None                 # grid spacing of the slice
+        self.slice_name = os.path.basename(path_file)              # basename of the slice file (with extension)
+        self.base_plt = os.path.splitext(self.slice_name)[0]   # same without extension
+        self.time = 0               # time of the plotfile (float)
+        self.amr_level = 0          # AMR level of the slice
+        self.normal_dir = "None"         # normal direction to the slice ("x", "y", "z")
+        self.normal_val = 0         # distance of the slice in the normal direction (between 0 and 1 if possible)
+        self.dx = 0                 # grid spacing of the slice
         self.num_dim = np.zeros(2, dtype="int")     # numerical dimensions of the slice
         self.real_dim = np.zeros(2)    # real dimensions of the slice
         
@@ -48,9 +48,6 @@ class SliceReader:
         self.field_available = []     # list of available fields
         self.load_list = load_list  # list of fields to actually load
         self.data = {}                # slice data (not initialized yet), one numpy array per field
-        #self.min_var = 0.0            # minimum of the loaded slice (specific to Pele)
-        #self.max_var = 0.0            # maximum of the loaded slice (specific to Pele)
-        #self.verbose = 0              # verbosity (why ?)
         
         # Initialize object with appropriate reader
         if self.file_type == "binary":
@@ -59,9 +56,9 @@ class SliceReader:
         elif self.file_type == "npz":
             # Reader for npz files from amrex_kitchen
             self.readNpz()
-        elif self.file_type == "h5py":
+        elif self.file_type == "h5":
             # Reader for h5py file from this class
-            raise Error("h5py not implemented yet")
+            self.readh5()
         else:
             raise Error("file_type {} not supported".format(self.file_type))
         
@@ -149,27 +146,22 @@ class SliceReader:
         np_arr = np.load(self.path_file)
         
         # fill what little metadata we have
-        self.field_available = list(np_arr.keys())
-        if "x" in self.field_available and "y" in self.field_available:
-            self.normal_dir = "z"
-            self.dx = np_arr["x"][1]-np_arr["x"][0]
+        if "time" in list(np_arr.keys()):
+            self.time = np_arr["time"]       # time
+            self.amr_level = np.max(np_arr["grid_level"])
+            self.normal_dir = str(np_arr["slice_normal"])        # axis
+            self.dx = np_arr["dx"]
             self.num_dim[0] = len(np_arr["y"])
             self.num_dim[1] = len(np_arr["x"])
-        elif "y" in self.field_available and "z" in self.field_available:
-            self.normal_dir = "x"
-            self.dx = np_arr["y"][1]-np_arr["y"][0]
-            self.num_dim[0] = len(np_arr["z"])
-            self.num_dim[1] = len(np_arr["y"])
-        elif "z" in self.field_available and "x" in self.field_available:
-            self.normal_dir = "y"
-            self.dx = np_arr["z"][1]-np_arr["z"][0]
-            self.num_dim[0] = len(np_arr["x"])
-            self.num_dim[1] = len(np_arr["z"])
-        self.real_dim = self.num_dim*self.dx                # deduce real dimensions from dx and size of slices
+            self.real_dim = self.num_dim*self.dx                # deduce real dimensions from dx and size of slices
+            self.normal_val = np_arr["slice_pos"] # value
+        
+        # Reconstruct field_available (remove metadata fields)
+        self.field_available = list(np_arr.keys())
         
         # fill data with selected fields
         if self.load_list is None:
-            print("Loading all available fields")
+            #print("Loading all available fields")
             self.load_list = self.field_available
         else:
             # check that all fields are indeed in available fields
@@ -180,17 +172,105 @@ class SliceReader:
         for field in self.load_list:
             # load each field slice into an entry of data with field as name
             self.data[field] = np_arr[field]
+            
+        list_remove = ["time", "slice_normal", "dx", "x", "y", "slice_pos"]
+        for rm_field in list_remove:
+            self.clear_field(rm_field)
+        
+        return
+    
+    # ------------ h5 reader ------------ #
+    def readh5(self):
+        # Reader for h5 files written by this code
+        with h5py.File(self.path_file, "r") as f:
+            # Read metadata
+            if "time" in list(f.attrs.keys()):
+                self.base_plt = f.attrs["base_plt"]
+                self.time = f.attrs["time"]
+                self.amr_level = f.attrs["amr_level"]
+                self.normal_dir = f.attrs["normal_dir"]
+                self.normal_val = f.attrs["normal_val"]
+                self.dx = f.attrs["dx"]
+                self.num_dim = f.attrs["num_dim"]
+                self.real_dim = f.attrs["real_dim"]
+            else:
+                print("metadata not loaded")
+            
+            # Update available fields with h5 dataset keys
+            self.field_available = list(f.keys())
+            print(self.field_available)
+            
+            # Read data
+            if self.load_list is None:
+                print("Loading all available fields")
+                self.load_list = self.field_available
+            else:
+                # check that all fields are indeed in available fields
+                for field in self.load_list:
+                    if field not in self.field_available:
+                        print("{} not available".format(field))
+                    else:
+                        self.data[field] = f[field]
         
         return
     
     #--------------------------------------#
     #            Output section            #
     #--------------------------------------#
-    
-    def saveh5(self):
+    def writeh5(self, output_dir, list_field=None):
         # Save everything loaded into a single h5py file containing efficiently both metadata and data
-        # NOT implemented yet
+        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+        with h5py.File(output_dir + "/{}.h5".format(self.base_plt), "w") as f:
+            # save metadata
+            f.attrs["base_plt"] = self.base_plt
+            f.attrs["time"] = self.time
+            f.attrs["amr_level"] = self.amr_level
+            f.attrs["normal_dir"] = self.normal_dir
+            f.attrs["normal_val"] = self.normal_val
+            f.attrs["dx"] = self.dx
+            f.attrs["num_dim"] = self.num_dim
+            f.attrs["real_dim"] = self.real_dim
+            
+            # save data (only the fields in list_field)
+            for key, array in self.data.items():
+                if key in list_field:
+                    f.create_dataset(key, data=array)
         return
+    
+    #----------------------------------------#
+    #            Data Manipulation           #
+    #----------------------------------------#
+    def clear_field(self, field):
+        # Remove 1 field from data and from load_list
+        if field in self.load_list:
+            del self.data[field]
+            self.load_list.remove(field)
+        else:
+            print("cannot clear {}: not loaded".format(field))
+        return
+    
+    def clear_all_field(self):
+        # Remove all fields from data and from field_available
+        for field in self.load_list:
+            self.clear_field(field)
+        return
+    
+    def add_one_field(self, field, data):
+        # Add one field and its data to this slice
+        shape_arr = np.array(data.shape)
+        if (shape_arr == self.num_dim).all():
+            self.load_list.append(field)
+            self.data[field] = data
+        else:
+            print("Cannot add {} to data, wrong array shape: {} (should be {})".format(shape_arr, self.num_dim))
+        return
+    
+    def add_dict(self, data_dict):
+        # Add all fields and data of a dict to this slice
+        for field, data in data_dict.items():
+            self.add_one_field(field, data)
+        return
+    
     
     #----------------------------------------#
     #            Operation section           #
@@ -201,12 +281,13 @@ class SliceReader:
         # Just write to console main slice information
         print("-------------- Slice Reader --------------")
         print("Slice loaded from {}".format(self.slice_name))
+        print("Time {:.5e} s".format(self.time))
         print("Direction: {}, distance: {}".format(self.normal_dir, self.normal_val))
-        print("Lx: {:.5f}, Ly: {:.5f}".format(self.real_dim[0], self.real_dim[1]))
+        print("Lx: {:.5e} m, Ly: {:.5e} m, dx: {:.5e} m".format(self.real_dim[0], self.real_dim[1], self.dx))
         print("Nx: {}, Ny: {}".format(self.num_dim[0], self.num_dim[1]))
         print("Available fields: {}".format(self.field_available))
         #print("\nLoaded fields: {}".format(self.load_list))
-        print("------------------------------------------")
+        print("------------------------------------------\n")
         return
     
     def getStateList(self, spec_names, filter_mask=None):
