@@ -175,7 +175,7 @@ class SliceReader:
             
         list_remove = ["time", "slice_normal", "dx", "x", "y", "slice_pos"]
         for rm_field in list_remove:
-            self.clear_field(rm_field)
+            self.clear_field(rm_field, verbose=0)
         
         return
     
@@ -198,7 +198,6 @@ class SliceReader:
             
             # Update available fields with h5 dataset keys
             self.field_available = list(f.keys())
-            print(self.field_available)
             
             # Read data
             if self.load_list is None:
@@ -231,22 +230,29 @@ class SliceReader:
             f.attrs["num_dim"] = self.num_dim
             f.attrs["real_dim"] = self.real_dim
             
+            # manage fields to save
+            if list_field is None:
+                list_field = self.load_list
+            
             # save data (only the fields in list_field)
             for key, array in self.data.items():
                 if key in list_field:
                     f.create_dataset(key, data=array)
+                else:
+                    print("cannot write {}: not loaded".format(field))
         return
     
     #----------------------------------------#
     #            Data Manipulation           #
     #----------------------------------------#
-    def clear_field(self, field):
+    def clear_field(self, field, verbose=True):
         # Remove 1 field from data and from load_list
         if field in self.load_list:
             del self.data[field]
             self.load_list.remove(field)
         else:
-            print("cannot clear {}: not loaded".format(field))
+            if verbose:
+                print("cannot clear {}: not loaded".format(field))
         return
     
     def clear_all_field(self):
@@ -281,12 +287,12 @@ class SliceReader:
         # Just write to console main slice information
         print("-------------- Slice Reader --------------")
         print("Slice loaded from {}".format(self.slice_name))
-        print("Time {:.5e} s".format(self.time))
+        print("Time: {:.5e} s".format(self.time))
         print("Direction: {}, distance: {}".format(self.normal_dir, self.normal_val))
         print("Lx: {:.5e} m, Ly: {:.5e} m, dx: {:.5e} m".format(self.real_dim[0], self.real_dim[1], self.dx))
         print("Nx: {}, Ny: {}".format(self.num_dim[0], self.num_dim[1]))
         print("Available fields: {}".format(self.field_available))
-        #print("\nLoaded fields: {}".format(self.load_list))
+        print("Loaded fields: {}".format(self.load_list))
         print("------------------------------------------\n")
         return
     
