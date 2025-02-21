@@ -198,19 +198,16 @@ class SliceReader:
             
             # Update available fields with h5 dataset keys
             self.field_available = list(f.keys())
-            
-            # Read data
             if self.load_list is None:
                 print("Loading all available fields")
                 self.load_list = self.field_available
-            else:
-                # check that all fields are indeed in available fields
-                for field in self.load_list:
-                    if field not in self.field_available:
-                        print("{} not available".format(field))
-                    else:
-                        self.data[field] = f[field]
-        
+            
+            # check that all fields are indeed in available fields
+            for field in self.load_list:
+                if field not in self.field_available:
+                    print("{} not available".format(field))
+                else:
+                    self.data[field] = f[field][:]
         return
     
     #--------------------------------------#
